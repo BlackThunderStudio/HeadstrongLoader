@@ -74,28 +74,10 @@ public class UpdaterView implements Initializable {
             }
         }));
 
-        download.valueProperty().addListener(((observable, oldValue, newValue) -> {
-            if(newValue != null && newValue){
-                String path = this.getClass().getProtectionDomain().getCodeSource().getLocation().getPath();
-                path = path.substring(1, path.lastIndexOf('/')) + "/updates/update_" + newVersionNumber + ".zip";
-                path = path.replaceAll("%20", " ");
-                downloadedFilePath = path;
-                progressBar.setProgress(-1.0f);
-                infoLabel.setText("Extracting update...");
-                System.out.println("Extracting update...");
-                extract();
-            } else {
-                infoLabel.setText("ERROR!");
-                progressBar.setVisible(false);
-            }
-        }));
-
         new Thread(checkForUpdates).start();
     }
 
     private void extract() {
-        System.out.println("Exctract method called");
-       new Thread(unzip).start();
         unzip.stateProperty().addListener(((observable, oldValue, newValue) -> {
             if(newValue.equals(Worker.State.SUCCEEDED)){
                 progressBar.setVisible(false);
@@ -106,6 +88,7 @@ public class UpdaterView implements Initializable {
                 progressBar.setVisible(false);
             }
         }));
+        new Thread(unzip).start();
     }
 
     private Task<Boolean> checkForUpdates = new Task<Boolean>() {
@@ -138,7 +121,6 @@ public class UpdaterView implements Initializable {
         @Override
         protected Boolean call() throws Exception {
             URL url = new URL(DOWNLOAD_ROOT + newVersionNumber + ".zip");
-            //TODO:test
             System.out.println("Downloading from: " + DOWNLOAD_ROOT + newVersionNumber + ".zip");
             HttpURLConnection httpURLConnection = (HttpURLConnection)url.openConnection();
             long fileSize = httpURLConnection.getContentLength();
@@ -148,8 +130,6 @@ public class UpdaterView implements Initializable {
             path = path.substring(1, path.lastIndexOf('/')) + "/updates/";
             path = path.replaceAll("%20", " ");
 
-            //TODO: test:
-            path = "C:/Users/rajmu/Desktop/Headstrong desktop manager/bin/updates/";
             FileOutputStream fileOutputStream = new FileOutputStream(path + "update_" + newVersionNumber + ".zip");
             BufferedOutputStream bout = new BufferedOutputStream(fileOutputStream, BUFFER_SIZE);
             byte[] data = new byte[BUFFER_SIZE];
@@ -162,6 +142,16 @@ public class UpdaterView implements Initializable {
             bout.close();
             in.close();
 
+            //extract
+            String path1 = this.getClass().getProtectionDomain().getCodeSource().getLocation().getPath();
+            path1 = path1.substring(1, path1.lastIndexOf('/')) + "/updates/update_" + newVersionNumber + ".zip";
+            path1 = path1.replaceAll("%20", " ");
+
+            downloadedFilePath = path1;
+            progressBar.setProgress(-1.0f);
+            infoLabel.setText("Extracting update...");
+            System.out.println("Extracting update... [" + downloadedFilePath + "]");
+            extract();
             return true;
         }
     };
@@ -173,8 +163,6 @@ public class UpdaterView implements Initializable {
             String path = this.getClass().getProtectionDomain().getCodeSource().getLocation().getPath();
             path = path.substring(1, path.lastIndexOf('/')) + "/";
 
-            //TODO: test:
-            path = "C:/Users/rajmu/Desktop/Headstrong desktop manager/";
             try {
                 zipper.unzip(downloadedFilePath, path);
             } catch (IOException e) {
@@ -190,8 +178,6 @@ public class UpdaterView implements Initializable {
         path = path.substring(1, path.lastIndexOf('/')) + "/cfg";
         path = path.replaceAll("%20", " ");
 
-        //TODO: test:
-        path = "C:/Users/rajmu/Desktop/Headstrong desktop manager/cfg";
         try {
             JSONObject jsonObject = (JSONObject) new JSONParser().parse(
                     new InputStreamReader(new FileInputStream(path + "/update.json"))
@@ -202,6 +188,10 @@ public class UpdaterView implements Initializable {
             e.printStackTrace();
         }
         return "";
+    }
+
+    private void setNewLocalVersion(){
+
     }
 
     private void openHeadstrongManager() throws IOException, InterruptedException {
