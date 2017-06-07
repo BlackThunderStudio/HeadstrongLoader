@@ -127,9 +127,10 @@ public class UpdaterView implements Initializable {
 
             BufferedInputStream in = new BufferedInputStream(httpURLConnection.getInputStream());
             String path = this.getClass().getProtectionDomain().getCodeSource().getLocation().getPath();
-            path = path.substring(1, path.lastIndexOf('/')) + "/updates/";
+            path = path.substring(1, path.lastIndexOf('/')) + "/bin/updates/";
             path = path.replaceAll("%20", " ");
 
+            System.out.println("Update destination: " + path + "update_" + newVersionNumber + ".zip");
             FileOutputStream fileOutputStream = new FileOutputStream(path + "update_" + newVersionNumber + ".zip");
             BufferedOutputStream bout = new BufferedOutputStream(fileOutputStream, BUFFER_SIZE);
             byte[] data = new byte[BUFFER_SIZE];
@@ -144,7 +145,7 @@ public class UpdaterView implements Initializable {
 
             //extract
             String path1 = this.getClass().getProtectionDomain().getCodeSource().getLocation().getPath();
-            path1 = path1.substring(1, path1.lastIndexOf('/')) + "/updates/update_" + newVersionNumber + ".zip";
+            path1 = path1.substring(1, path1.lastIndexOf('/')) + "/bin/updates/update_" + newVersionNumber + ".zip";
             path1 = path1.replaceAll("%20", " ");
 
             downloadedFilePath = path1;
