@@ -1,6 +1,5 @@
 package com.headstrongpro.desktopLoader.view;
 
-import com.headstrongpro.desktopLoader.Main;
 import com.jfoenix.controls.JFXProgressBar;
 import javafx.application.Platform;
 import javafx.concurrent.Task;
@@ -8,13 +7,12 @@ import javafx.concurrent.Worker;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.control.Label;
+import org.jetbrains.annotations.NotNull;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.net.URL;
 import java.util.ResourceBundle;
 import java.util.concurrent.ThreadLocalRandom;
@@ -73,11 +71,33 @@ public class UpdaterView implements Initializable {
             JSONObject rawJson = (JSONObject) parser.parse(new BufferedReader(new InputStreamReader(new URL(UPDATE_PATH).openStream())));
             rawJson = (JSONObject)rawJson.get(UPDATE_ROOT);
             String version = (String)rawJson.get("version");
-            System.out.println("server version: " + version);
             Thread.sleep(1000);
+            System.out.println("server version: " + version);
+            String localVersion = getLocalVersion();
+            System.out.println("Local version: " + localVersion);
             return false;
         }
     };
+
+    @NotNull
+    private String getLocalVersion() {
+        String path = this.getClass().getProtectionDomain().getCodeSource().getLocation().getPath();
+        path = path.substring(1, path.lastIndexOf('/')) + "/cfg";
+        path = path.replaceAll("%20", " ");
+
+        //test:
+        path = "C:/users/rajmu/IdeaProjects/desktop-manager/out/artifacts/Headstrong_manager/cfg";
+        try {
+            JSONObject jsonObject = (JSONObject) new JSONParser().parse(
+                    new InputStreamReader(new FileInputStream(path + "/update.json"))
+            );
+            jsonObject = (JSONObject)jsonObject.get("local");
+            return (String)jsonObject.get("version");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return "";
+    }
 
     private void openHeadstrongManager() throws IOException, InterruptedException {
         Process process = Runtime.getRuntime().exec(new String[]{"java", "-jar", "desktop_manager.jar"});
