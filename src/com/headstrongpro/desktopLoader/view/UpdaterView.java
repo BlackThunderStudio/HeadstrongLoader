@@ -56,6 +56,12 @@ public class UpdaterView implements Initializable {
                     downloadUpdate();
                     infoLabel.setText("Extracting update...");
                     extract();
+                    try {
+                        openHeadstrongManager();
+                    } catch (IOException | InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                    Platform.exit();
                 } else {
                     infoLabel.setText("");
                     System.out.println("Starting the main application");
