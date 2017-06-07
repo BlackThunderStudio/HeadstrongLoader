@@ -54,10 +54,7 @@ public class UpdaterView implements Initializable {
                 if(newValue){
                     infoLabel.setText("Update found! Downloading...");
                     System.out.println("Update found! Downloading...");
-                    downloadUpdate();
-                    infoLabel.setText("Extracting update...");
-                    System.out.println("Extracting update...");
-                    extract();
+                    new Thread(download).start();
                     try {
                         openHeadstrongManager();
                     } catch (IOException | InterruptedException e) {
@@ -77,32 +74,33 @@ public class UpdaterView implements Initializable {
             }
         }));
 
-        new Thread(checkForUpdates).start();
-    }
-
-    private void extract() {
-       new Thread(unzip).start();
-        unzip.stateProperty().addListener(((observable, oldValue, newValue) -> {
-            if(newValue.equals(Worker.State.SUCCEEDED)){
-                progressBar.setVisible(false);
-                infoLabel.setText("Update installation completed.");
-            } else if(newValue.equals(Worker.State.FAILED) || newValue.equals(Worker.State.CANCELLED)){
-                infoLabel.setText("ERROR!");
-                progressBar.setVisible(false);
-            }
-        }));
-    }
-
-    private void downloadUpdate() {
-        progressBar.setProgress(0.0f);
-        new Thread(download).start();
-        download.stateProperty().addListener(((observable, oldValue, newValue) -> {
-            if(newValue.equals(Worker.State.SUCCEEDED)){
+        download.valueProperty().addListener(((observable, oldValue, newValue) -> {
+            if(newValue != null && newValue){
                 String path = this.getClass().getProtectionDomain().getCodeSource().getLocation().getPath();
                 path = path.substring(1, path.lastIndexOf('/')) + "/updates/update_" + newVersionNumber + ".zip";
                 path = path.replaceAll("%20", " ");
                 downloadedFilePath = path;
                 progressBar.setProgress(-1.0f);
+                infoLabel.setText("Extracting update...");
+                System.out.println("Extracting update...");
+                extract();
+            } else {
+                infoLabel.setText("ERROR!");
+                progressBar.setVisible(false);
+            }
+        }));
+
+        new Thread(checkForUpdates).start();
+    }
+
+    private void extract() {
+        System.out.println("Exctract method called");
+       new Thread(unzip).start();
+        unzip.stateProperty().addListener(((observable, oldValue, newValue) -> {
+            if(newValue.equals(Worker.State.SUCCEEDED)){
+                progressBar.setVisible(false);
+                infoLabel.setText("Update installation completed.");
+                System.out.println("Update installation completed.");
             } else if(newValue.equals(Worker.State.FAILED) || newValue.equals(Worker.State.CANCELLED)){
                 infoLabel.setText("ERROR!");
                 progressBar.setVisible(false);
@@ -136,10 +134,12 @@ public class UpdaterView implements Initializable {
         }
     };
 
-    private Task<Void> download = new Task<Void>() {
+    private Task<Boolean> download = new Task<Boolean>() {
         @Override
-        protected Void call() throws Exception {
+        protected Boolean call() throws Exception {
             URL url = new URL(DOWNLOAD_ROOT + newVersionNumber + ".zip");
+            //TODO:test
+            System.out.println("Downloading from: " + DOWNLOAD_ROOT + newVersionNumber + ".zip");
             HttpURLConnection httpURLConnection = (HttpURLConnection)url.openConnection();
             long fileSize = httpURLConnection.getContentLength();
 
@@ -147,6 +147,9 @@ public class UpdaterView implements Initializable {
             String path = this.getClass().getProtectionDomain().getCodeSource().getLocation().getPath();
             path = path.substring(1, path.lastIndexOf('/')) + "/updates/";
             path = path.replaceAll("%20", " ");
+
+            //TODO: test:
+            path = "C:/Users/rajmu/Desktop/Headstrong desktop manager/bin/updates/";
             FileOutputStream fileOutputStream = new FileOutputStream(path + "update_" + newVersionNumber + ".zip");
             BufferedOutputStream bout = new BufferedOutputStream(fileOutputStream, BUFFER_SIZE);
             byte[] data = new byte[BUFFER_SIZE];
@@ -154,15 +157,12 @@ public class UpdaterView implements Initializable {
             int x = 0;
             while ((x = in.read(data, 0, BUFFER_SIZE)) > 0){
                 downloadedFileSize += x;
-                final double currentProgress = downloadedFileSize / fileSize;
-                Platform.runLater(() -> progressBar.setProgress(currentProgress));
-                System.out.println("[Download progress]: " + currentProgress * 100);
                 bout.write(data, 0, x);
             }
             bout.close();
             in.close();
 
-            return null;
+            return true;
         }
     };
 
@@ -172,6 +172,9 @@ public class UpdaterView implements Initializable {
             UnzipUtility zipper = new UnzipUtility();
             String path = this.getClass().getProtectionDomain().getCodeSource().getLocation().getPath();
             path = path.substring(1, path.lastIndexOf('/')) + "/";
+
+            //TODO: test:
+            path = "C:/Users/rajmu/Desktop/Headstrong desktop manager/";
             try {
                 zipper.unzip(downloadedFilePath, path);
             } catch (IOException e) {
@@ -187,6 +190,8 @@ public class UpdaterView implements Initializable {
         path = path.substring(1, path.lastIndexOf('/')) + "/cfg";
         path = path.replaceAll("%20", " ");
 
+        //TODO: test:
+        path = "C:/Users/rajmu/Desktop/Headstrong desktop manager/cfg";
         try {
             JSONObject jsonObject = (JSONObject) new JSONParser().parse(
                     new InputStreamReader(new FileInputStream(path + "/update.json"))
