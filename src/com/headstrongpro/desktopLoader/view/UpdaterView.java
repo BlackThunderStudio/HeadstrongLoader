@@ -11,6 +11,7 @@ import javafx.scene.control.Label;
 import org.jetbrains.annotations.NotNull;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
 
 import java.io.*;
 import java.net.HttpURLConnection;
@@ -77,20 +78,6 @@ public class UpdaterView implements Initializable {
         new Thread(checkForUpdates).start();
     }
 
-    private void extract() {
-        unzip.stateProperty().addListener(((observable, oldValue, newValue) -> {
-            if(newValue.equals(Worker.State.SUCCEEDED)){
-                progressBar.setVisible(false);
-                infoLabel.setText("Update installation completed.");
-                System.out.println("Update installation completed.");
-            } else if(newValue.equals(Worker.State.FAILED) || newValue.equals(Worker.State.CANCELLED)){
-                infoLabel.setText("ERROR!");
-                progressBar.setVisible(false);
-            }
-        }));
-        new Thread(unzip).start();
-    }
-
     private Task<Boolean> checkForUpdates = new Task<Boolean>() {
         @Override
         protected Boolean call() throws Exception {
@@ -151,8 +138,8 @@ public class UpdaterView implements Initializable {
             downloadedFilePath = path1;
             progressBar.setProgress(-1.0f);
             infoLabel.setText("Extracting update...");
-            System.out.println("Extracting update... [" + downloadedFilePath + "]");
-            extract();
+            System.out.println("Extracting update... " + downloadedFilePath + "");
+            new Thread(unzip).start();
             return true;
         }
     };
@@ -163,12 +150,18 @@ public class UpdaterView implements Initializable {
             UnzipUtility zipper = new UnzipUtility();
             String path = this.getClass().getProtectionDomain().getCodeSource().getLocation().getPath();
             path = path.substring(1, path.lastIndexOf('/')) + "/";
+            path = path.replaceAll("%20", " ");
+            System.out.println("Update destination: " + path);
 
             try {
                 zipper.unzip(downloadedFilePath, path);
             } catch (IOException e) {
                 e.printStackTrace();
             }
+
+            progressBar.setVisible(false);
+            infoLabel.setText("Update installation completed.");
+            System.out.println("Update installation completed.");
             return null;
         }
     };
@@ -192,7 +185,15 @@ public class UpdaterView implements Initializable {
     }
 
     private void setNewLocalVersion(){
-
+        String path = this.getClass().getProtectionDomain().getCodeSource().getLocation().getPath();
+        path = path.substring(1, path.lastIndexOf('/')) + "/cfg";
+        path = path.replaceAll("%20", " ");
+        try {
+            JSONObject jsonObject = (JSONObject) new JSONParser().parse(new InputStreamReader(new FileInputStream(path + "/update.json")));
+            //TODO: update the json file somehow!!!!
+        } catch (IOException | ParseException e) {
+            e.printStackTrace();
+        }
     }
 
     private void openHeadstrongManager() throws IOException, InterruptedException {
