@@ -53,8 +53,10 @@ public class UpdaterView implements Initializable {
             if(newValue != null){
                 if(newValue){
                     infoLabel.setText("Update found! Downloading...");
+                    System.out.println("Update found! Downloading...");
                     downloadUpdate();
                     infoLabel.setText("Extracting update...");
+                    System.out.println("Extracting update...");
                     extract();
                     try {
                         openHeadstrongManager();
@@ -154,6 +156,7 @@ public class UpdaterView implements Initializable {
                 downloadedFileSize += x;
                 final double currentProgress = downloadedFileSize / fileSize;
                 Platform.runLater(() -> progressBar.setProgress(currentProgress));
+                System.out.println("[Download progress]: " + currentProgress * 100);
                 bout.write(data, 0, x);
             }
             bout.close();
