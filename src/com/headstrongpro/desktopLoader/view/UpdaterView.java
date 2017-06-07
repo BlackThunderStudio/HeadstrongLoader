@@ -48,6 +48,7 @@ public class UpdaterView implements Initializable {
             if(newValue != null){
                 if(newValue){
                     infoLabel.setText("Update found! Downloading...");
+                    downloadUpdate();
                 } else {
                     infoLabel.setText("");
                     System.out.println("Starting the main application");
@@ -64,6 +65,10 @@ public class UpdaterView implements Initializable {
         new Thread(checkForUpdates).start();
     }
 
+    private void downloadUpdate() {
+        //TODO: to be implemented
+    }
+
     private Task<Boolean> checkForUpdates = new Task<Boolean>() {
         @Override
         protected Boolean call() throws Exception {
@@ -75,6 +80,16 @@ public class UpdaterView implements Initializable {
             System.out.println("server version: " + version);
             String localVersion = getLocalVersion();
             System.out.println("Local version: " + localVersion);
+
+            //compare
+            String[] verSplit = version.split("\\.");
+            String[] localSplit = localVersion.split("\\.");
+
+            for (int i = 0; i < localSplit.length; i++){
+                int a = Integer.parseInt(localSplit[i]);
+                int b = Integer.parseInt(verSplit[i]);
+                if(a < b) return true;
+            }
             return false;
         }
     };
