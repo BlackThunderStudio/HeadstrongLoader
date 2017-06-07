@@ -7,6 +7,9 @@ import javafx.concurrent.Task;
 import javafx.concurrent.Worker;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
 import org.jetbrains.annotations.NotNull;
 import org.json.simple.JSONObject;
@@ -16,6 +19,7 @@ import org.json.simple.parser.ParseException;
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.Optional;
 import java.util.ResourceBundle;
 
 /**
@@ -55,15 +59,18 @@ public class UpdaterView implements Initializable {
                 if(newValue){
                     infoLabel.setText("Update found! Downloading...");
                     System.out.println("Update found! Downloading...");
-                    new Thread(download).start();
-                    try {
-                        openHeadstrongManager();
-                    } catch (IOException | InterruptedException e) {
-                        e.printStackTrace();
-                    }
-                    Platform.exit();
+                    Alert a = new Alert(Alert.AlertType.CONFIRMATION,
+                            "Bear in mind that in order to further use the application you MUST perform an update. \nDo you want to proceed?",
+                            ButtonType.YES,
+                            ButtonType.CLOSE);
+                    a.setHeaderText("There is a new update available! Version " + newVersionNumber);
+                    Optional<ButtonType> result = a.showAndWait();
+                    result.ifPresent(buttonType -> {
+                        if(buttonType.equals(ButtonType.YES)){
+                            new Thread(download).start();
+                        } else Platform.exit();
+                    });
                 } else {
-                    infoLabel.setText("");
                     System.out.println("Starting the main application");
                     try {
                         openHeadstrongManager();
@@ -162,6 +169,15 @@ public class UpdaterView implements Initializable {
             progressBar.setVisible(false);
             infoLabel.setText("Update installation completed.");
             System.out.println("Update installation completed.");
+            setNewLocalVersion();
+
+            System.out.println("Starting the main application");
+            try {
+                openHeadstrongManager();
+            } catch (IOException | InterruptedException e) {
+                e.printStackTrace();
+            }
+            Platform.exit();
             return null;
         }
     };
@@ -184,14 +200,21 @@ public class UpdaterView implements Initializable {
         return "";
     }
 
+    @SuppressWarnings("unchecked")
     private void setNewLocalVersion(){
         String path = this.getClass().getProtectionDomain().getCodeSource().getLocation().getPath();
         path = path.substring(1, path.lastIndexOf('/')) + "/cfg";
         path = path.replaceAll("%20", " ");
-        try {
-            JSONObject jsonObject = (JSONObject) new JSONParser().parse(new InputStreamReader(new FileInputStream(path + "/update.json")));
-            //TODO: update the json file somehow!!!!
-        } catch (IOException | ParseException e) {
+
+        JSONObject obj = new JSONObject();
+        JSONObject version = new JSONObject();
+        version.put("version", newVersionNumber);
+        obj.put("local", version);
+        try (FileWriter fileWriter = new FileWriter(path + "/update.json")){
+            fileWriter.write(obj.toJSONString());
+            fileWriter.flush();
+            System.out.println("Updating version to: " + obj);
+        } catch (IOException e) {
             e.printStackTrace();
         }
     }
