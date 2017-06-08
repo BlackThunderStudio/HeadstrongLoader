@@ -8,13 +8,11 @@ import javafx.concurrent.Worker;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.control.Alert;
-import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
 import org.jetbrains.annotations.NotNull;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
-import org.json.simple.parser.ParseException;
 
 import java.io.*;
 import java.net.HttpURLConnection;
@@ -33,6 +31,8 @@ public class UpdaterView implements Initializable {
     public JFXProgressBar progressBar;
     @FXML
     public Label infoLabel;
+    @FXML
+    public Label secondaryLabel;
 
     private String newVersionNumber;
     private String downloadedFilePath;
@@ -42,15 +42,33 @@ public class UpdaterView implements Initializable {
     private static final String DOWNLOAD_ROOT = "http://headstrongpro.com/data/updates/update_";
     private static final int BUFFER_SIZE = 1024;
 
+    private static final String PROGRESS_INFINITE = "infinite";
+    private static final String SECONDARY_DEFAULT = "This might take a while.";
+
     @Override
     public void initialize(URL location, ResourceBundle resources) {
         infoLabel.setText("Checking for updates...");
         progressBar.setProgress(-1.0f);
         progressBar.setVisible(true);
+        secondaryLabel.setText(SECONDARY_DEFAULT);
 
-        checkForUpdates.stateProperty().addListener(((observable, oldValue, newValue) -> {
-            if(newValue.equals(Worker.State.SUCCEEDED)){
-                progressBar.setVisible(false);
+        download.progressProperty().addListener(((observable, oldValue, newValue) -> {
+            if(newValue != null){
+                progressBar.setProgress(newValue.doubleValue());
+                secondaryLabel.setText(String.format("Download progress: %.2f%%", newValue.doubleValue() * 100));
+            }
+        }));
+
+        unzip.messageProperty().addListener(((observable, oldValue, newValue) -> {
+            if(newValue != null){
+                if(newValue.equals(PROGRESS_INFINITE)) {
+                    progressBar.setProgress(-1.0f);
+                    secondaryLabel.setText(SECONDARY_DEFAULT);
+                }
+                else {
+                    infoLabel.setText(newValue);
+                    System.out.printf("[Info] %s", newValue);
+                }
             }
         }));
 
@@ -79,10 +97,50 @@ public class UpdaterView implements Initializable {
                     }
                     Platform.exit();
                 }
+            } else notifyFailure();
+        }));
+
+        download.stateProperty().addListener(((observable, oldValue, newValue) -> {
+            if(newValue.equals(Worker.State.SUCCEEDED)){
+                //extract
+                String path1 = this.getClass().getProtectionDomain().getCodeSource().getLocation().getPath();
+                path1 = path1.substring(1, path1.lastIndexOf('/')) + "/bin/updates/update_" + newVersionNumber + ".zip";
+                path1 = path1.replaceAll("%20", " ");
+
+                downloadedFilePath = path1;
+                infoLabel.setText("Extracting update...");
+                System.out.println("Extracting update... " + downloadedFilePath + "");
+                new Thread(unzip).start();
+            } else if(newValue.equals(Worker.State.FAILED) || newValue.equals(Worker.State.CANCELLED)){
+                notifyFailure();
+            }
+        }));
+
+        unzip.stateProperty().addListener(((observable, oldValue, newValue) -> {
+            if(newValue.equals(Worker.State.SUCCEEDED)){
+                setNewLocalVersion();
+
+                System.out.println("Starting the main application");
+                try {
+                    openHeadstrongManager();
+                } catch (IOException | InterruptedException e) {
+                    e.printStackTrace();
+                }
+                Platform.exit();
+            } else if(newValue.equals(Worker.State.FAILED) || newValue.equals(Worker.State.CANCELLED)){
+                notifyFailure();
             }
         }));
 
         new Thread(checkForUpdates).start();
+    }
+
+    private void notifyFailure(){
+        Alert a = new Alert(Alert.AlertType.ERROR);
+        a.setHeaderText("Unexpected error occurred!");
+        a.setContentText("Please try again later.");
+        Optional<ButtonType> response = a.showAndWait();
+        response.ifPresent(e -> Platform.exit());
     }
 
     private Task<Boolean> checkForUpdates = new Task<Boolean>() {
@@ -133,20 +191,10 @@ public class UpdaterView implements Initializable {
             while ((x = in.read(data, 0, BUFFER_SIZE)) > 0){
                 downloadedFileSize += x;
                 bout.write(data, 0, x);
+                updateProgress(downloadedFileSize, fileSize);
             }
             bout.close();
             in.close();
-
-            //extract
-            String path1 = this.getClass().getProtectionDomain().getCodeSource().getLocation().getPath();
-            path1 = path1.substring(1, path1.lastIndexOf('/')) + "/bin/updates/update_" + newVersionNumber + ".zip";
-            path1 = path1.replaceAll("%20", " ");
-
-            downloadedFilePath = path1;
-            progressBar.setProgress(-1.0f);
-            infoLabel.setText("Extracting update...");
-            System.out.println("Extracting update... " + downloadedFilePath + "");
-            new Thread(unzip).start();
             return true;
         }
     };
@@ -154,6 +202,7 @@ public class UpdaterView implements Initializable {
     private Task<Void> unzip = new Task<Void>() {
         @Override
         protected Void call() throws Exception {
+            updateMessage(PROGRESS_INFINITE);
             UnzipUtility zipper = new UnzipUtility();
             String path = this.getClass().getProtectionDomain().getCodeSource().getLocation().getPath();
             path = path.substring(1, path.lastIndexOf('/')) + "/";
@@ -167,17 +216,7 @@ public class UpdaterView implements Initializable {
             }
 
             progressBar.setVisible(false);
-            infoLabel.setText("Update installation completed.");
-            System.out.println("Update installation completed.");
-            setNewLocalVersion();
-
-            System.out.println("Starting the main application");
-            try {
-                openHeadstrongManager();
-            } catch (IOException | InterruptedException e) {
-                e.printStackTrace();
-            }
-            Platform.exit();
+            updateMessage("Update installation completed.");
             return null;
         }
     };

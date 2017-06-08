@@ -17,7 +17,7 @@
     <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="SOMETIMES" />
   </rowConstraints>
    <children>
-      <JFXProgressBar fx:id="progressBar" prefHeight="20.0" prefWidth="310.0" progress="0.0" GridPane.halignment="CENTER" GridPane.rowIndex="2" GridPane.valignment="TOP">
+      <JFXProgressBar fx:id="progressBar" prefHeight="30.0" prefWidth="310.0" progress="0.0" GridPane.halignment="CENTER" GridPane.rowIndex="2" GridPane.valignment="TOP">
          <GridPane.margin>
             <Insets top="5.0" />
          </GridPane.margin></JFXProgressBar>
@@ -26,7 +26,7 @@
             <Insets left="25.0" />
          </GridPane.margin>
       </Label>
-      <Label text="This might take a while" GridPane.rowIndex="1" GridPane.valignment="BOTTOM">
+      <Label fx:id="secondaryLabel" text="This might take a while." GridPane.rowIndex="1" GridPane.valignment="BOTTOM">
          <GridPane.margin>
             <Insets bottom="5.0" left="25.0" />
          </GridPane.margin>
