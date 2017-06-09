@@ -10,12 +10,17 @@ import javafx.fxml.Initializable;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
+import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
 
+import java.awt.*;
 import java.io.*;
 import java.net.HttpURLConnection;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.Optional;
 import java.util.ResourceBundle;
@@ -35,18 +40,26 @@ public class UpdaterView implements Initializable {
     public Label secondaryLabel;
 
     private String newVersionNumber;
+    private String remoteLauncherVersion;
     private String downloadedFilePath;
 
-    private static final String UPDATE_PATH = "http://remix1436.ct8.pl/resources/headstrong/version.json";
-    private static final String UPDATE_ROOT = "desktop";
-    private static final String DOWNLOAD_ROOT = "http://headstrongpro.com/data/updates/update_";
+    private static final String LAUNCHER_VERSION = "1.0.0";
+
+    private static String UPDATE_PATH;
+    private static String UPDATE_ROOT;
+    private static String DOWNLOAD_ROOT;
+    private static String UPDATE_LOCAL;
     private static final int BUFFER_SIZE = 1024;
+    private static String LAUNCHER_DOWNLOAD;
+    private static String TARGET;
 
     private static final String PROGRESS_INFINITE = "infinite";
     private static final String SECONDARY_DEFAULT = "This might take a while.";
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
+        loadConfigData();
+
         infoLabel.setText("Checking for updates...");
         progressBar.setProgress(-1.0f);
         progressBar.setVisible(true);
@@ -78,24 +91,21 @@ public class UpdaterView implements Initializable {
                     infoLabel.setText("Update found! Downloading...");
                     System.out.println("Update found! Downloading...");
                     Alert a = new Alert(Alert.AlertType.CONFIRMATION,
-                            "Bear in mind that in order to further use the application you MUST perform an update. \nDo you want to proceed?",
+                            "Bear in mind that in order to further use the application you SHOULD perform an update. Otherwise any damages or unwanted behaviour caused by the outdated version fall into the user's responsibility. \nDo you want to proceed?",
                             ButtonType.YES,
+                            ButtonType.CANCEL,
                             ButtonType.CLOSE);
                     a.setHeaderText("There is a new update available! Version " + newVersionNumber);
                     Optional<ButtonType> result = a.showAndWait();
                     result.ifPresent(buttonType -> {
                         if(buttonType.equals(ButtonType.YES)){
                             new Thread(download).start();
+                        } else if(buttonType.equals(ButtonType.CANCEL)){
+                            startMainApp();
                         } else Platform.exit();
                     });
                 } else {
-                    System.out.println("Starting the main application");
-                    try {
-                        openHeadstrongManager();
-                    } catch (IOException | InterruptedException e) {
-                        e.printStackTrace();
-                    }
-                    Platform.exit();
+                    startMainApp();
                 }
             } else notifyFailure();
         }));
@@ -104,7 +114,7 @@ public class UpdaterView implements Initializable {
             if(newValue.equals(Worker.State.SUCCEEDED)){
                 //extract
                 String path1 = this.getClass().getProtectionDomain().getCodeSource().getLocation().getPath();
-                path1 = path1.substring(1, path1.lastIndexOf('/')) + "/bin/updates/update_" + newVersionNumber + ".zip";
+                path1 = path1.substring(1, path1.lastIndexOf('/')) + UPDATE_LOCAL + newVersionNumber + ".zip";
                 path1 = path1.replaceAll("%20", " ");
 
                 downloadedFilePath = path1;
@@ -132,7 +142,46 @@ public class UpdaterView implements Initializable {
             }
         }));
 
-        new Thread(checkForUpdates).start();
+        checkLauncherVersion.valueProperty().addListener(((observable, oldValue, newValue) -> {
+            if(newValue != null){
+                if(newValue){
+                    //download newest
+                    Alert alert = new Alert(Alert.AlertType.WARNING,
+                            "This update requires you to re-downlaod the whole application due to backwards incompatible changes. Please click OK to be redirected to the download location.",
+                            ButtonType.OK,
+                            ButtonType.CLOSE);
+                    alert.setHeaderText("New update for the launcher is available. Version " + remoteLauncherVersion);
+                    Optional<ButtonType> response = alert.showAndWait();
+                    response.ifPresent(e -> {
+                        if(e.equals(ButtonType.OK)){
+                            try {
+                                Desktop.getDesktop().browse(new URL(LAUNCHER_DOWNLOAD + remoteLauncherVersion + ".exe").toURI());
+                                Platform.exit();
+                            } catch (IOException | URISyntaxException e1) {
+                                e1.printStackTrace();
+                                notifyFailure();
+                            }
+                        } else {
+                            Platform.exit();
+                        }
+                    });
+                } else {
+                    new Thread(checkForUpdates).start();
+                }
+            } else notifyFailure();
+        }));
+
+        new Thread(checkLauncherVersion).start();
+    }
+
+    private void startMainApp(){
+        System.out.println("Starting the main application");
+        try {
+            openHeadstrongManager();
+        } catch (IOException | InterruptedException e) {
+            e.printStackTrace();
+        }
+        Platform.exit();
     }
 
     private void notifyFailure(){
@@ -143,33 +192,54 @@ public class UpdaterView implements Initializable {
         response.ifPresent(e -> Platform.exit());
     }
 
+    private Task<Boolean> checkLauncherVersion = new Task<Boolean>() {
+        @Contract(pure = true)
+        @Override
+        protected Boolean call() throws Exception {
+            JSONObject json = (JSONObject) new JSONParser().parse(new BufferedReader(new InputStreamReader(new URL(UPDATE_PATH).openStream())));
+            json = (JSONObject)json.get(UPDATE_ROOT);
+            String version = (String)json.get("launcher");
+            Thread.sleep(500);
+            remoteLauncherVersion = version;
+            System.out.printf("Local launcher version: %s\nRemote launcher version: %s", LAUNCHER_VERSION, remoteLauncherVersion);
+
+            return compVersions(LAUNCHER_VERSION, remoteLauncherVersion);
+        }
+    };
+
     private Task<Boolean> checkForUpdates = new Task<Boolean>() {
+        @NotNull
         @Override
         protected Boolean call() throws Exception {
             JSONParser parser = new JSONParser();
             JSONObject rawJson = (JSONObject) parser.parse(new BufferedReader(new InputStreamReader(new URL(UPDATE_PATH).openStream())));
             rawJson = (JSONObject)rawJson.get(UPDATE_ROOT);
             String version = (String)rawJson.get("version");
-            Thread.sleep(1000);
+            Thread.sleep(500);
             newVersionNumber = version;
             System.out.println("server version: " + version);
             String localVersion = getLocalVersion();
             System.out.println("Local version: " + localVersion);
 
             //compare
-            String[] verSplit = version.split("\\.");
-            String[] localSplit = localVersion.split("\\.");
-
-            for (int i = 0; i < localSplit.length; i++){
-                int a = Integer.parseInt(localSplit[i]);
-                int b = Integer.parseInt(verSplit[i]);
-                if(a < b) return true;
-            }
-            return false;
+            return compVersions(localVersion, version);
         }
     };
 
+    private boolean compVersions(String local, String remote){
+        String[] verSplit = remote.split("\\.");
+        String[] localSplit = local.split("\\.");
+
+        for (int i = 0; i < localSplit.length; i++){
+            int a = Integer.parseInt(localSplit[i]);
+            int b = Integer.parseInt(verSplit[i]);
+            if(a < b) return true;
+        }
+        return false;
+    }
+
     private Task<Boolean> download = new Task<Boolean>() {
+        @NotNull
         @Override
         protected Boolean call() throws Exception {
             URL url = new URL(DOWNLOAD_ROOT + newVersionNumber + ".zip");
@@ -200,6 +270,7 @@ public class UpdaterView implements Initializable {
     };
 
     private Task<Void> unzip = new Task<Void>() {
+        @Nullable
         @Override
         protected Void call() throws Exception {
             updateMessage(PROGRESS_INFINITE);
@@ -213,6 +284,7 @@ public class UpdaterView implements Initializable {
                 zipper.unzip(downloadedFilePath, path);
             } catch (IOException e) {
                 e.printStackTrace();
+                notifyFailure();
             }
 
             progressBar.setVisible(false);
@@ -235,6 +307,7 @@ public class UpdaterView implements Initializable {
             return (String)jsonObject.get("version");
         } catch (Exception e) {
             e.printStackTrace();
+            notifyFailure();
         }
         return "";
     }
@@ -255,10 +328,35 @@ public class UpdaterView implements Initializable {
             System.out.println("Updating version to: " + obj);
         } catch (IOException e) {
             e.printStackTrace();
+            notifyFailure();
+        }
+    }
+
+    private void loadConfigData(){
+        System.out.println("Initializing the launcher...");
+        String path = this.getClass().getProtectionDomain().getCodeSource().getLocation().getPath();
+        path = path.substring(1, path.lastIndexOf('/')) + "/cfg";
+        path = path.replaceAll("%20", " ");
+
+        try {
+            System.out.println("Loading launcher config data...");
+            JSONObject rootObject = (JSONObject) new JSONParser().parse(new InputStreamReader(new FileInputStream(path + "/launcher.json")));
+            JSONObject obj = (JSONObject) rootObject.get("remote_path");
+            UPDATE_PATH = (String)obj.get("update");
+            DOWNLOAD_ROOT = (String)obj.get("download");
+            LAUNCHER_DOWNLOAD = (String)obj.get("launcher");
+            obj = (JSONObject)rootObject.get("local_path");
+            UPDATE_ROOT = (String)rootObject.get("update_root");
+            UPDATE_LOCAL = (String)obj.get("download");
+            TARGET = (String)rootObject.get("target");
+            System.out.println("Data loaded.");
+        } catch (IOException | ParseException e) {
+            e.printStackTrace();
+            notifyFailure();
         }
     }
 
     private void openHeadstrongManager() throws IOException, InterruptedException {
-        Process process = Runtime.getRuntime().exec(new String[]{"java", "-jar", "desktop_manager.jar"});
+        Process process = Runtime.getRuntime().exec(new String[]{"java", "-jar", TARGET + ".jar"});
     }
 }

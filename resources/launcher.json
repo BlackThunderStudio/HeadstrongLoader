@@ -1,0 +1,12 @@
+{
+  "remote_path": {
+    "update": "http://remix1436.ct8.pl/resources/headstrong/version.json",
+    "download": "http://headstrongpro.com/data/updates/update_",
+    "launcher": "http://headstrongpro.com/data/Headstrong Manager_"
+  },
+  "local_path": {
+    "download": "/bin/updates/update_"
+  },
+  "update_root": "desktop",
+  "target": "desktop_manager"
+}
